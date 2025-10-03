@@ -9,4 +9,82 @@ output: github_document
 library(tidyverse)
 library(haven)
 library(readxl)
+library(p8105.datasets)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "95%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
+
+### Problem 1
+```{r collapse=TRUE}
+data("instacart")
+```
+
+```{r collapse=TRUE}
+length(unique(pull(instacart, aisle_id)))
+length(unique(pull(instacart, aisle)))
+
+top_3_ordered_aisles = instacart |> 
+  group_by(aisle) |> 
+  summarize(num_orders = n_distinct(order_id)) |> 
+  mutate(order_rank = min_rank(desc(num_orders))) |> 
+  filter(order_rank <= 3) 
+```
+There are `r length(unique(pull(instacart, aisle_id)))` aisles. The 3 aisles with the highest number of orders are `r pull(top_3_ordered_aisles, aisle)`
+```{r}
+# Plotting 
+instacart |> 
+  group_by(aisle) |> 
+  summarize(num_orders = n_distinct(order_id)) |> 
+  filter(num_orders > 10000) |> 
+  arrange(num_orders) |> 
+  ggplot(aes(x = reorder(aisle, num_orders), y = num_orders)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    x = "Total # of Orders",
+    y = "Aisle"
+  )
+```
+
+```{r}
+instacart |>
+  filter(aisle %in% c("baking ingredients", "dog food care", "packaged vegetables fruits")) |> 
+  group_by(aisle, product_name) |> 
+  summarize(num_orders = n()) |> 
+  mutate(order_rank = min_rank(desc(num_orders))) |> 
+  filter(order_rank <= 3) |> 
+  arrange(desc(num_orders)) |> 
+  select(-order_rank) |> 
+  knitr::kable()
+```
+
+```{r}
+instacart |> 
+  filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) |> 
+  group_by(product_name, order_dow) |> 
+  summarize(mean_hour_of_day = round(mean(order_hour_of_day), digits = 1)) |> 
+  pivot_wider(
+    names_from = product_name,
+    values_from = mean_hour_of_day
+  )|> 
+  knitr::kable()
+
+```
+
+
+### Problem 2
+### Problem 3
