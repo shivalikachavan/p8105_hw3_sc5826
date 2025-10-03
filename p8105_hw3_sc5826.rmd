@@ -11,6 +11,11 @@ library(haven)
 library(readxl)
 library(p8105.datasets)
 
+knitr::opts_chunk$set(
+  fig.width = 8,
+  fig.asp = 1,
+  out.width = "95%"
+)
 
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
