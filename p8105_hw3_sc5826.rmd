@@ -1,0 +1,12 @@
+---
+title: "p8105_hw3_sc5826"
+author: "Shivalika Chavan"
+date: "2025-10-03"
+output: github_document
+---
+
+```{r setup, collapse=TRUE}
+library(tidyverse)
+library(haven)
+library(readxl)
+```
