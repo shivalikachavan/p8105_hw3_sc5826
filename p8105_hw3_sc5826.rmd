@@ -9,7 +9,9 @@ output: github_document
 library(tidyverse)
 library(haven)
 library(readxl)
+library(ggridges)
 library(p8105.datasets)
+
 
 knitr::opts_chunk$set(
   fig.width = 8,
@@ -26,6 +28,9 @@ options(
 
 scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
+
+# order of levels for making month into a factor so the months are in chronological order, not alphabetical
+month_order = c("January","February","March","April","May","June","July","August","September","October","November","December") 
 ```
 
 ### Problem 1
@@ -57,7 +62,6 @@ illustrative_example_instacart |> knitr::kable()
 ```
 User `r unique(pull(illustrative_example_instacart, user_id))` has `order_id` `r unique(pull(illustrative_example_instacart, order_id))`, which is the `r unique(pull(illustrative_example_instacart, order_number))`th order from this user. It's been `r unique(pull(illustrative_example_instacart, days_since_prior_order))` days since their last order. This order was placed on the `r unique(pull(illustrative_example_instacart, order_dow))`th day of the week and `r unique(pull(illustrative_example_instacart, order_hour_of_day))`th hour of the day. There were `r nrow(illustrative_example_instacart)` products added to this order (`r pull(illustrative_example_instacart, product_name)`), from the `r length(unique(pull(illustrative_example_instacart, department)))` departments (`r unique(pull(illustrative_example_instacart, department))`) and `r length(unique(pull(illustrative_example_instacart, aisle)))` aisles (`r unique(pull(illustrative_example_instacart, aisle))`). 
 
-
 ```{r collapse=TRUE}
 length(unique(pull(instacart, aisle_id)))
 length(unique(pull(instacart, aisle)))
@@ -68,7 +72,7 @@ top_3_ordered_aisles = instacart |>
   mutate(order_rank = min_rank(desc(num_orders))) |> 
   filter(order_rank <= 3) 
 ```
-There are `r length(unique(pull(instacart, aisle_id)))` aisles. The 3 aisles with the highest number of orders are `r pull(top_3_ordered_aisles, aisle)`
+There are `r length(unique(pull(instacart, aisle_id)))` aisles. The 3 aisles with the highest number of orders are `r pull(top_3_ordered_aisles, aisle)`.
 ```{r}
 # Plotting 
 instacart |> 
@@ -85,7 +89,7 @@ instacart |>
   )
 ```
 
-```{r}
+```{r collapse=TRUE}
 instacart |>
   filter(aisle %in% c("baking ingredients", "dog food care", "packaged vegetables fruits")) |> 
   group_by(aisle, product_name) |> 
@@ -97,7 +101,7 @@ instacart |>
   knitr::kable()
 ```
 
-```{r}
+```{r collapse=TRUE}
 instacart |> 
   filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) |> 
   group_by(product_name, order_dow) |> 
@@ -110,6 +114,144 @@ instacart |>
 
 ```
 
-
 ### Problem 2
+```{r collapse=TRUE}
+# Importing and cleaning Zillow data in the same way as HW 2
+zip_codes_nyc = read.csv("./data/zillow_data/zip_codes.csv") |> 
+  janitor::clean_names()|> 
+  select(-state_fips, -file_date) |> 
+  relocate(county_code, county_fips, county)
+
+zori_nyc = read.csv("./data/zillow_data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv") |>
+  janitor::clean_names() |>
+  pivot_longer(
+    x2015_01_31:x2024_08_31,
+    names_to = "date",
+    names_prefix = "x",
+    values_to = "index"
+  ) |>
+  separate("date", into = c("year", "month", "day"), sep = "_", convert = TRUE) |>
+  mutate(
+    month =
+      recode(
+        month,
+        `1` = "January",
+        `2` = "February",
+        `3` = "March",
+        `4` = "April",
+        `5` = "May",
+        `6` = "June",
+        `7` = "July",
+        `8` = "August",
+        `9` = "September",
+        `10` = "October",
+        `11` = "November",
+        `12` = "December"
+        ),
+    month = factor(month, levels = month_order),
+    county = str_replace(county_name, " County", ""),
+    zip_code = region_name
+  ) |>
+  select(-county_name, -region_type, -region_name, -state_name, -state, -city, -metro) |> 
+  relocate(year, month, day, county, zip_code, region_id, size_rank, index)
+
+zori_nyc_neighborhoods = left_join(zori_nyc, zip_codes_nyc, by = c("zip_code", "county")) |> 
+  relocate(year, month, day, county, county_code, county_fips, neighborhood, size_rank, region_id, zip_code) |> 
+  arrange(year, month, day)
+```
+There are 116 months between January 2015 and August 2024. How many ZIP codes are observed 116 times? How many are observed fewer than 10 times? Why are some ZIP codes are observed rarely and others observed in each month?
+```{r collapse=TRUE}
+num_zip_codes = zori_nyc_neighborhoods |> 
+  group_by(county, neighborhood, zip_code) |> 
+  summarize(
+    n_obs = n_distinct(index)
+  )
+
+zip_codes_116_obs = num_zip_codes |> 
+  filter(n_obs == 116) 
+
+zip_codes_rare_obs = num_zip_codes |> 
+  filter(n_obs < 10) 
+```
+There are `r length(pull(zip_codes_116_obs, zip_code))` zip codes that are observed 116 times. There are `r length(pull(zip_codes_rare_obs, zip_code))` zip codes that are observed less than 10 times. The frequently observed zip codes have more rental properties (e.g `r unique(pull(zip_codes_116_obs |> head(5), neighborhood))`). The rarely observed zip codes have more owner-occupied and commercial properties (e.g `r unique(pull(zip_codes_rare_obs |> head(5), neighborhood))`). 
+
+Average rent price year-to-year:
+```{r collapse=TRUE}
+zori_nyc_neighborhoods |> 
+  mutate(
+    borough = case_match(
+      county,
+      "Bronx" ~ "The Bronx",
+      "Kings" ~ "Brooklyn",
+      "New York" ~ "Manhattan",
+      "Queens" ~ "Queens",
+      "Richmond" ~ "Staten Island"
+      )
+    ) |> 
+  group_by(borough, year) |> 
+  summarize(
+    avg_rent_price = round(mean(index, na.rm=TRUE), digits = 2)
+  ) |> 
+  pivot_wider(
+    names_from = borough,
+    values_from = avg_rent_price
+  ) |> 
+  knitr::kable()
+```
+Change in average rent price year-over-year:
+```{r echo=FALSE, message=FALSE}
+zori_nyc_neighborhoods |> 
+  mutate(
+    borough = case_match(
+      county,
+      "Bronx" ~ "The Bronx",
+      "Kings" ~ "Brooklyn",
+      "New York" ~ "Manhattan",
+      "Queens" ~ "Queens",
+      "Richmond" ~ "Staten Island"
+      )
+    ) |> 
+  group_by(borough, year) |> 
+  summarize(
+    avg_rent_price = round(mean(index, na.rm=TRUE), digits = 2)
+  ) |> 
+  mutate(
+    avg_rent_price_change = avg_rent_price - lag(avg_rent_price)
+  ) |>
+  select(-avg_rent_price) |> 
+  pivot_wider(
+    names_from = borough,
+    values_from = avg_rent_price_change
+  ) |>
+  knitr::kable()
+```
+Collection of rental data in Staten Island only started in 2020. In general, the most expensive boroughs are Manhattan and Brooklyn. In 2020, presumably because of the COVID-19 pandemic, average rental prices dropped in Brooklyn, Manhattan, and Queens, but rose in The Bronx. In 2021, average rental price dropped in Brooklyn and Queens, but rose in Manhattan, Staten Island, and The Bronx. In 2022, average rental prices shot up in every borough, and have continued to rise in subsequent years. 
+
+Make a plot showing NYC Rental Prices within ZIP codes for all available years. Your plot should facilitate comparisons across boroughs. Comment on any significant elements of this plot.
+```{r}
+zori_nyc_neighborhoods |> 
+  mutate(
+    borough = case_match(
+      county,
+      "Bronx" ~ "The Bronx",
+      "Kings" ~ "Brooklyn",
+      "New York" ~ "Manhattan",
+      "Queens" ~ "Queens",
+      "Richmond" ~ "Staten Island"
+      )
+    ) |> 
+  filter(!is.na(index)) |> 
+  ggplot(aes(x = year, y = index, color = borough)) +
+  geom_jitter(height = 0) +
+  # geom_smooth(method = "lm", stat = "smooth") +
+  facet_grid(.~borough) +
+  scale_x_continuous(
+    breaks = c(2015, 2020, 2024)
+  ) 
+  
+  
+```
+
+
+
 ### Problem 3
