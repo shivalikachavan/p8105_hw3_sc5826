@@ -30,8 +30,31 @@ scale_fill_discrete = scale_fill_viridis_d
 
 ### Problem 1
 ```{r collapse=TRUE}
-data("instacart")
+data("instacart") 
+instacart = instacart |> 
+  relocate(
+    user_id, 
+    order_id, order_number, days_since_prior_order, order_dow, order_hour_of_day, 
+    add_to_cart_order, product_id, product_name, reordered, 
+    department_id, department, aisle_id, aisle
+  ) |> 
+  select(-eval_set)
 ```
+In the `instacart` data set, there are `r nrow(instacart)` observations and `r ncol(instacart)` variables (`r colnames(instacart)`). The data set has been arranged as such:
+
+  *    A user identifier: `user_id` 
+  *    Information about the order: `order_id`,`order_number` (order sequence number for this user), `days_since_prior_order`,  and when the order was placed (`order_dow` and `order_hour_of_day`)
+  *    Information about the products added to the cart:  `add_to_cart_order`, `product_id`, `product_name`, `reordered` (1 if this prodcut has been ordered by this user in the past, 0 otherwise), `department_id`, `department`, `aisle_id`, `aisle`
+  
+There also was an `eval_set` variable. Every observation was from the `train` set, which isn't relevant to this data exploration. 
+
+Here's an example of one user's order:
+```{r echo=FALSE}
+instacart |> filter(user_id == 112108) |> 
+  knitr::kable()
+```
+
+
 
 ```{r collapse=TRUE}
 length(unique(pull(instacart, aisle_id)))
