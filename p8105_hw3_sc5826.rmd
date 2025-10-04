@@ -8,7 +8,7 @@ output: github_document
 ```{r setup, collapse=TRUE}
 library(tidyverse)
 library(haven)
-library(readxl)
+library(patchwork)
 library(ggridges)
 library(p8105.datasets)
 
@@ -217,7 +217,7 @@ zori_nyc_neighborhoods |>
 ```
 Collection of rental data in Staten Island only started in 2020. In general, the most expensive boroughs are Manhattan and Brooklyn. In 2020, presumably because of the COVID-19 pandemic, average rental prices dropped in Brooklyn, Manhattan, and Queens, but rose in The Bronx. In 2021, average rental price dropped in Brooklyn and Queens, but rose in Manhattan, Staten Island, and The Bronx. In 2022, average rental prices shot up in every borough, and have continued to rise in subsequent years. 
 
-```{r warning=FALSE}
+```{r collapse=TRUE,warning=FALSE}
 average_rent_zipcode = zori_nyc_neighborhoods |> 
   filter(!is.na(index)) |> 
   group_by(borough, year, zip_code, neighborhood) |> 
@@ -226,7 +226,7 @@ average_rent_zipcode = zori_nyc_neighborhoods |>
   ) |> 
   ungroup()
   
-average_rent_zipcode |> 
+average_rent_zipcode_plot = average_rent_zipcode |> 
   ggplot(aes(x = year, y = avg_rent_price, color = borough)) +
   geom_point(alpha = 0.5) + 
   geom_smooth(method = "loess", se = FALSE) +
@@ -235,6 +235,7 @@ average_rent_zipcode |>
     breaks = c(2015, 2020)
   ) +
   ylab("Average Annual Rent Price per ZIP code ($)")
+average_rent_zipcode_plot
 ```
 Overall, we can see that Brooklyn and Manhattan have many data points and a large spread in the data, while Staten Island and The Bronx have fewer data points and a small spread in the data. In Brooklyn, Manhattan, and Queens, here are some distinct gaps in average rent price. Let's take a look at which zip codes are in these gaps. 
 ```{r}
@@ -258,5 +259,49 @@ In Manhattan, there isn't a distinct gap, but the top 5 highest rents are consis
 In Queens, we can see that there are 2 zip codes with consistently high average rent since 2015. These zip codes are `r unique(pull(top_rent_zip_code_queens, zip_code))`, which correspond to `r unique(pull(filter(top_rent_zip_code_queens, !is.na(neighborhood)), neighborhood))` (including Astoria) and Long Island City (LIC). 
 
 These expensive neighborhoods are not surprising to see, especially given their trendiness. 
+
+Compute the average rental price within each ZIP code over each month in 2023. Make a reader-friendly plot showing the distribution of ZIP-code-level rental prices across boroughs; put differently, your plot should facilitate the comparison of the distribution of average rental prices across boroughs. Comment on this plot.
+```{r collapse=TRUE,warning=FALSE}
+average_2023_rent_zipcode = zori_nyc_neighborhoods |> 
+  filter(!is.na(index), year == 2023) |> 
+  group_by(borough, month, zip_code, neighborhood) |> 
+  summarize(
+    avg_rent_price = round(mean(index, na.rm=TRUE), digits = 2)
+  ) |> 
+  ungroup()
+  
+average_2023_rent_zipcode_plot = average_2023_rent_zipcode |> 
+  ggplot(aes(x = month, y = avg_rent_price, color = borough)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_grid(.~borough) +
+  ylab("Average Annual Rent Price per ZIP code ($)") +
+  xlab("Month (2023)")+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+average_2023_rent_zipcode_plot
+```
+Similar to the previous plot, we can see some grouping in Brooklyn, Manhattan, and Queens. 
+```{r collapse=TRUE}
+ranked_rent_2023 = average_2023_rent_zipcode |> 
+  group_by(borough, month) |> 
+  mutate(rent_rank = min_rank(desc(avg_rent_price))) 
+
+top_rent_zip_code_brooklyn_2023 = ranked_rent |> 
+  filter(borough == "Brooklyn", rent_rank == 1) 
+
+top_rent_zip_code_manhattan_2023 = ranked_rent |> 
+  filter(borough == "Manhattan", rent_rank <= 3) 
+
+top_rent_zip_code_queens_2023 = ranked_rent |> 
+  filter(borough == "Queens", rent_rank <= 2) 
+```
+In Brooklyn, the most expensive zip code is `r unique(pull(top_rent_zip_code_brooklyn_2023, zip_code))`. In Manhattan, the most expensive zip codes are `r unique(pull(top_rent_zip_code_manhattan_2023, zip_code))`. In Queens, the most expensive zip codes are `r unique(pull(top_rent_zip_code_queens_2023, zip_code))`. This pattern is similar to what was seen in the whole data set from 2015 to 2024. 
+
+Combining the plots: 
+```{r}
+average_2023_rent_zipcode_plot / average_rent_zipcode_plot
+```
+
+
 
 ### Problem 3
