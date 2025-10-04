@@ -50,10 +50,12 @@ There also was an `eval_set` variable. Every observation was from the `train` se
 
 Here's an example of one user's order:
 ```{r echo=FALSE}
-instacart |> filter(user_id == 112108) |> 
-  knitr::kable()
-```
+illustrative_example_instacart = instacart |> 
+  filter(user_id == 112108)
 
+illustrative_example_instacart |> knitr::kable()
+```
+User `r unique(pull(illustrative_example_instacart, user_id))` has `order_id` `r unique(pull(illustrative_example_instacart, order_id))`, which is the `r unique(pull(illustrative_example_instacart, order_number))`th order from this user. It's been `r unique(pull(illustrative_example_instacart, days_since_prior_order))` days since their last order. This order was placed on the `r unique(pull(illustrative_example_instacart, order_dow))`th day of the week and `r unique(pull(illustrative_example_instacart, order_hour_of_day))`th hour of the day. There were `r nrow(illustrative_example_instacart)` products added to this order (`r pull(illustrative_example_instacart, product_name)`), from the `r length(unique(pull(illustrative_example_instacart, department)))` departments (`r unique(pull(illustrative_example_instacart, department))`) and `r length(unique(pull(illustrative_example_instacart, aisle)))` aisles (`r unique(pull(illustrative_example_instacart, aisle))`). 
 
 
 ```{r collapse=TRUE}
