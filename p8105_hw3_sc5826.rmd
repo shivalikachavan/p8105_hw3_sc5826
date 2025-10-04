@@ -14,7 +14,7 @@ library(p8105.datasets)
 
 
 knitr::opts_chunk$set(
-  fig.width = 10,
+  fig.width = 8,
   fig.asp = 1,
   out.width = "95%"
 )
@@ -157,7 +157,17 @@ zori_nyc = read.csv("./data/zillow_data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv
 
 zori_nyc_neighborhoods = left_join(zori_nyc, zip_codes_nyc, by = c("zip_code", "county")) |> 
   relocate(year, month, day, county, county_code, county_fips, neighborhood, size_rank, region_id, zip_code) |> 
-  arrange(year, month, day)
+  arrange(year, month, day)|> 
+  mutate(
+    borough = case_match(
+      county,
+      "Bronx" ~ "The Bronx",
+      "Kings" ~ "Brooklyn",
+      "New York" ~ "Manhattan",
+      "Queens" ~ "Queens",
+      "Richmond" ~ "Staten Island"
+      )
+    ) 
 ```
 There are 116 months between January 2015 and August 2024. How many ZIP codes are observed 116 times? How many are observed fewer than 10 times? Why are some ZIP codes are observed rarely and others observed in each month?
 ```{r collapse=TRUE}
@@ -178,16 +188,6 @@ There are `r length(pull(zip_codes_116_obs, zip_code))` zip codes that are obser
 Average rent price year-to-year:
 ```{r collapse=TRUE}
 zori_nyc_neighborhoods |> 
-  mutate(
-    borough = case_match(
-      county,
-      "Bronx" ~ "The Bronx",
-      "Kings" ~ "Brooklyn",
-      "New York" ~ "Manhattan",
-      "Queens" ~ "Queens",
-      "Richmond" ~ "Staten Island"
-      )
-    ) |> 
   group_by(borough, year) |> 
   summarize(
     avg_rent_price = round(mean(index, na.rm=TRUE), digits = 2)
@@ -201,16 +201,6 @@ zori_nyc_neighborhoods |>
 Change in average rent price year-over-year:
 ```{r echo=FALSE, message=FALSE}
 zori_nyc_neighborhoods |> 
-  mutate(
-    borough = case_match(
-      county,
-      "Bronx" ~ "The Bronx",
-      "Kings" ~ "Brooklyn",
-      "New York" ~ "Manhattan",
-      "Queens" ~ "Queens",
-      "Richmond" ~ "Staten Island"
-      )
-    ) |> 
   group_by(borough, year) |> 
   summarize(
     avg_rent_price = round(mean(index, na.rm=TRUE), digits = 2)
@@ -227,28 +217,46 @@ zori_nyc_neighborhoods |>
 ```
 Collection of rental data in Staten Island only started in 2020. In general, the most expensive boroughs are Manhattan and Brooklyn. In 2020, presumably because of the COVID-19 pandemic, average rental prices dropped in Brooklyn, Manhattan, and Queens, but rose in The Bronx. In 2021, average rental price dropped in Brooklyn and Queens, but rose in Manhattan, Staten Island, and The Bronx. In 2022, average rental prices shot up in every borough, and have continued to rise in subsequent years. 
 
-Make a plot showing NYC Rental Prices within ZIP codes for all available years. Your plot should facilitate comparisons across boroughs. Comment on any significant elements of this plot.
-```{r}
-zori_nyc_neighborhoods |> 
-  mutate(
-    borough = case_match(
-      county,
-      "Bronx" ~ "The Bronx",
-      "Kings" ~ "Brooklyn",
-      "New York" ~ "Manhattan",
-      "Queens" ~ "Queens",
-      "Richmond" ~ "Staten Island"
-      )
-    ) |> 
+```{r warning=FALSE}
+average_rent_zipcode = zori_nyc_neighborhoods |> 
   filter(!is.na(index)) |> 
-  ggplot(aes(x = year, y = index, color = borough)) +
-  geom_jitter(height = 0, width = 0.2) +
+  group_by(borough, year, zip_code, neighborhood) |> 
+  summarize(
+    avg_rent_price = round(mean(index, na.rm=TRUE), digits = 2)
+  ) |> 
+  ungroup()
+  
+average_rent_zipcode |> 
+  ggplot(aes(x = year, y = avg_rent_price, color = borough)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "loess", se = FALSE) +
   facet_grid(.~borough) +
   scale_x_continuous(
     breaks = c(2015, 2020)
-  ) 
+  ) +
+  ylab("Average Annual Rent Price per ZIP code ($)")
 ```
+Overall, we can see that Brooklyn and Manhattan have many data points and a large spread in the data, while Staten Island and The Bronx have fewer data points and a small spread in the data. In Brooklyn, Manhattan, and Queens, here are some distinct gaps in average rent price. Let's take a look at which zip codes are in these gaps. 
+```{r}
+ranked_rent = average_rent_zipcode |> 
+  group_by(borough, year) |> 
+  mutate(rent_rank = min_rank(desc(avg_rent_price))) 
 
+top_rent_zip_code_brooklyn = ranked_rent |> 
+  filter(borough == "Brooklyn", year %in% c(2022:2024), rent_rank == 1) 
 
+top_rent_zip_code_manhattan = ranked_rent |> 
+  filter(borough == "Manhattan", year %in% c(2017:2024), rent_rank <= 5) 
+
+top_rent_zip_code_queens = ranked_rent |> 
+  filter(borough == "Queens", year %in% c(2015:2024), rent_rank <= 2) 
+```
+In Brooklyn, there is `r length(unique(pull(top_rent_zip_code_brooklyn, zip_code)))` distinct zip code (`r unique(pull(top_rent_zip_code_brooklyn, zip_code))`) that has an unusally high average rent starting in 2022. This neighborhood is unlisted as `r unique(pull(top_rent_zip_code_brooklyn, neighborhood))`, but Google shows that this zip code has serviced Williamsburg since 2011.
+
+In Manhattan, there isn't a distinct gap, but the top 5 highest rents are consistently from `r length(unique(pull(top_rent_zip_code_manhattan, zip_code)))` zip codes (`r unique(pull(top_rent_zip_code_manhattan, zip_code))`). We know some of these neighborhoods from the data (`r unique(pull(filter(top_rent_zip_code_manhattan, !is.na(neighborhood)), neighborhood))`). Google shows that the zip codes where neighborhood is not listed in the data set are Upper West Side, specifically near Lincoln Center and Riverside Park, (10069) and Battery Park City (10282).
+
+In Queens, we can see that there are 2 zip codes with consistently high average rent since 2015. These zip codes are `r unique(pull(top_rent_zip_code_queens, zip_code))`, which correspond to `r unique(pull(filter(top_rent_zip_code_queens, !is.na(neighborhood)), neighborhood))` (including Astoria) and Long Island City (LIC). 
+
+These expensive neighborhoods are not surprising to see, especially given their trendiness. 
 
 ### Problem 3
