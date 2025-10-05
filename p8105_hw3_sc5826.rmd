@@ -377,7 +377,7 @@ At the less than high school education level, there appears to be a negative cor
 
 Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
 ```{r collapse=TRUE}
-median_mims = nhanes |> 
+nhanes |> 
   group_by(sex, education, hour) |>
   summarize(
     median_mims = median(mims)
@@ -386,13 +386,10 @@ median_mims = nhanes |>
   geom_point(alpha = 0.5) +
   scale_x_continuous(breaks = seq(0, 24, by = 6)) +
   facet_grid(education~.) 
-
-smoothed_mims = nhanes |> 
+nhanes |> 
   ggplot(aes(x = hour, y = mims, color = sex)) +
   geom_smooth() +
   scale_x_continuous(breaks = seq(0, 24, by = 6)) +
   facet_grid(education~.)
-
-median_mims/smoothed_mims
 ```
-Plotting both the median of MIMS data across all participants at each time point and a smoothed line show similar trends. Activity is at the lowest between 0-6 hours. From 6-12 hours, activity rises and stays pretty flat through hour 18. From hours 18-24, activity decreases. At the less than high school level, male and female activity track closely. However at the equivalent to and more than high school levels, female activity appears higher than male activity at around hour 8. At other hours, male and female activity is pretty close. 
+Plotting both the median of MIMS data across all participants at each time point and a smoothed line show similar trends. Activity is at the lowest between hour 0-6 From hour 6-12, activity rises and stays pretty flat through hour 18. From hours 18-24, activity decreases. At the less than high school level, male and female activity track closely. At the high school equivalent level, female activity is higher from hours 9 to 15 compared to male activity. At the more than high school level, female activity is consistently higher than male activity from hour 6 to 20. 
