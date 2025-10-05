@@ -12,7 +12,6 @@ library(patchwork)
 library(ggridges)
 library(p8105.datasets)
 
-
 knitr::opts_chunk$set(
   fig.width = 8,
   fig.asp = 1,
@@ -302,6 +301,98 @@ Combining the plots:
 average_2023_rent_zipcode_plot / average_rent_zipcode_plot
 ```
 
-
-
 ### Problem 3
+```{r collapse=TRUE}
+# the skipped lines have info about education (1 = less than high school, 2 = high school equivalent, 3 = more than high school) and sex (female = 2)
+nhanes_demographic = read.csv("./data/nhanes_covar.csv", skip = 4, na = c("NA")) |>
+  as_tibble() |> 
+  janitor::clean_names() |> 
+  mutate(
+    sex = 
+      case_match(
+        sex, 
+        1 ~ "male", 
+        2 ~ "female"
+        ),
+    education = factor(education, levels = c(1, 2, 3), labels = c("less than high school", "high school equivalent", "more than high school")) #factoring education level
+  ) |> 
+  drop_na() |> #filter out any missing data
+  filter(age > 21) #filter participants less than 21
+
+nhanes_accelerometer = read.csv("./data/nhanes_accel.csv") |>
+  as_tibble() |> 
+  janitor::clean_names() 
+
+nhanes = left_join(nhanes_demographic, nhanes_accelerometer, by = "seqn") |> 
+  pivot_longer(
+    min1:min1440,
+    names_to = "min", 
+    names_prefix = "min",
+    values_to = "mims") |> 
+  mutate(
+    min = as.numeric(min), 
+    hour = min/60)
+```
+
+Making table
+```{r collapse=TRUE}
+nhanes_demographic |> 
+  group_by(sex, education) |> 
+  summarize(n = n()) |> 
+  pivot_wider(
+    names_from = sex,
+    values_from = n
+  ) |> 
+  knitr::kable()
+```
+There is an equal distribution of male and female participants with an education level less than high school or more than high school. There are slightly more men with an education level equivalent to high school. There are almost double the number of participants with an education levels more than high school, compared to the other 2 education levels. 
+
+Making plot
+```{r}
+age_dist_plot = nhanes_demographic |> 
+  ggplot(aes(x = age, color = sex)) +
+  geom_histogram(aes(fill = sex), binwidth = 5) +
+  facet_grid(sex~education) 
+  # xlim(20, 80)+
+  # scale_y_continuous(
+  #   breaks = c(2, 4, 6, 8)
+  # )
+age_dist_plot
+```
+Here, it is more clear that most participants have an education level more than high school. Most participants in the more than high school education category are in the lower end of the range. 
+
+```{r collapse=TRUE}
+nhanes |> 
+  group_by(seqn, sex, age, bmi, education) |> 
+  summarize(
+    mims_total = sum(mims)
+  ) |> 
+  ggplot(aes(x = age, y = mims_total, color = sex)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_grid(education~.)
+```
+At the less than high school education level, there appears to be a negative correlation between age and total MIMS. At the high school equivalent education level, there appears to be a slight negative correlation between age and total MIMS. At the more than high school education level, there does not appear to be any correlation between age and total MIMS. At all education levels, there does not appear to be a difference in total MIMS between male and female participants. 
+
+
+Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
+```{r collapse=TRUE}
+median_mims = nhanes |> 
+  group_by(sex, education, hour) |>
+  summarize(
+    median_mims = median(mims)
+  ) |>
+  ggplot(aes(x = hour, y = median_mims, color = sex)) +
+  geom_point(alpha = 0.5) +
+  scale_x_continuous(breaks = seq(0, 24, by = 6)) +
+  facet_grid(education~.) 
+
+smoothed_mims = nhanes |> 
+  ggplot(aes(x = hour, y = mims, color = sex)) +
+  geom_smooth() +
+  scale_x_continuous(breaks = seq(0, 24, by = 6)) +
+  facet_grid(education~.)
+
+median_mims/smoothed_mims
+```
+Plotting both the median of MIMS data across all participants at each time point and a smoothed line show similar trends. Activity is at the lowest between 0-6 hours. From 6-12 hours, activity rises and stays pretty flat through hour 18. From hours 18-24, activity decreases. At the less than high school level, male and female activity track closely. However at the equivalent to and more than high school levels, female activity appears higher than male activity at around hour 8. At other hours, male and female activity is pretty close. 
